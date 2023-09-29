@@ -1,0 +1,140 @@
+from functools import partial
+from ...layers.normalization import RMSNorm
+from typing import Any, Mapping, Optional, Type, TypeVar
+
+import torch
+from torch import Tensor
+from torch.nn import Dropout, LayerNorm, ModuleList
+
+from ...layers.attention import AttentionHeads, QkvMode, SelfAttention
+from ...layers.embeddings import QueryKeyRotaryEmbeddings
+from ...layers.feedforward import PointwiseFeedForward
+from ...layers.transformer import (
+    DecoderLayer,
+    EmbeddingDropouts,
+    EmbeddingLayerNorms,
+    TransformerDropouts,
+    TransformerEmbeddings,
+    TransformerLayerNorms,
+)
+from ..hf_hub import FromHFHub
+from ..hf_hub.conversion import state_dict_from_hf, state_dict_to_hf
+from ..transformer import TransformerDecoder
+from ._hf import DECODER_HF_PARAM_KEY_TRANSFORMS, convert_hf_config
+from .config import MistralConfig
+
+# Only provided as typing.Self in Python 3.11+.
+Self = TypeVar("Self", bound="MistralDecoder")
+
+
+class MistralDecoder(TransformerDecoder[MistralConfig], FromHFHub):
+    """
+    Mistral decoder.
+    """
+
+    def __init__(
+        self, config: MistralConfig, *, device: Optional[torch.device] = None
+    ) -> None:
+        """
+        Construct a Mistral decoder.
+
+        :param config:
+            Decoder configuration.
+        :param device:
+            Device to which the module is to be moved.
+        :returns:
+            The decoder.
+        """
+        super().__init__(config)
+
+        self.embeddings = TransformerEmbeddings(
+            dropouts=EmbeddingDropouts(
+                embed_output_dropout=Dropout(config.embedding.dropout_prob)
+            ),
+            embedding_width=config.embedding.embedding_width,
+            hidden_width=config.layer.feedforward.hidden_width,
+            layer_norms=EmbeddingLayerNorms(),
+            n_pieces=config.embedding.n_pieces,
+            n_positions=None,
+            n_types=None,
+            device=device,
+        )
+
+        hidden_width = config.layer.feedforward.hidden_width
+        n_query_heads = config.layer.attention.n_query_heads
+        n_key_value_heads = config.layer.attention.n_key_value_heads
+        layer_norm = partial(
+            RMSNorm,
+            hidden_width,
+            eps=config.layer.layer_norm_eps,
+            device=device,
+        )
+        if config.layer.attention.rotary_embeddings is None:
+            raise ValueError(
+                "Mistral attention config does not contain rotary embedding parameters"
+            )
+        self.layers = ModuleList(
+            [
+                DecoderLayer(
+                    attention_layer=SelfAttention(
+                        attention_heads=AttentionHeads.key_value_broadcast(
+                            n_query_heads=n_query_heads,
+                            n_key_value_heads=n_key_value_heads,
+                        ),
+                        dropout_prob=config.layer.attention.dropout_prob,
+                        hidden_width=hidden_width,
+                        qkv_mode=QkvMode.SEPARATE,
+                        rotary_embeds=QueryKeyRotaryEmbeddings(
+                            fraction=config.layer.attention.rotary_embeddings.rotary_fraction,
+                            base=config.layer.attention.rotary_embeddings.rotary_base,
+                            head_width=hidden_width // n_query_heads,
+                        ),
+                        use_bias=config.layer.attention.use_bias,
+                        device=device,
+                    ),
+                    feed_forward_layer=PointwiseFeedForward(
+                        activation=config.layer.feedforward.activation.module(),
+                        hidden_width=hidden_width,
+                        intermediate_width=config.layer.feedforward.intermediate_width,
+                        use_bias=config.layer.feedforward.use_bias,
+                        use_gate=config.layer.feedforward.use_gate,
+                        device=device,
+                    ),
+                    dropouts=TransformerDropouts.layer_output_dropouts(
+                        config.layer.dropout_prob
+                    ),
+                    layer_norms=TransformerLayerNorms(
+                        attn_input_layer_norm=layer_norm(),
+                        ffn_input_layer_norm=layer_norm(),
+                    ),
+                    use_parallel_attention=config.layer.attention.use_parallel_attention,
+                )
+                for _ in range(config.layer.n_hidden_layers)
+            ]
+        )
+
+        self.output_layer_norm = RMSNorm(
+            hidden_width, eps=config.layer.layer_norm_eps, device=device
+        )
+
+    @classmethod
+    def state_dict_from_hf(
+        cls: Type[Self], params: Mapping[str, Tensor]
+    ) -> Mapping[str, Tensor]:
+        return state_dict_from_hf(params, DECODER_HF_PARAM_KEY_TRANSFORMS)
+
+    @classmethod
+    def state_dict_to_hf(
+        cls: Type[Self], params: Mapping[str, Tensor]
+    ) -> Mapping[str, Tensor]:
+        return state_dict_to_hf(params, DECODER_HF_PARAM_KEY_TRANSFORMS)
+
+    @classmethod
+    def from_hf_config(
+        cls: Type[Self],
+        *,
+        hf_config: Any,
+        device: Optional[torch.device] = None,
+    ) -> Self:
+        config = convert_hf_config(hf_config)
+        return cls(config, device=device)

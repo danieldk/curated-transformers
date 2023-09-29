@@ -1,0 +1,61 @@
+import pytest
+
+from curated_transformers.models.mistral.decoder import MistralDecoder
+
+from ...compat import has_hf_transformers, has_torch_compile
+from ...conftest import TORCH_DEVICES
+from ..util import (
+    JITMethod,
+    assert_decoder_output_equals_hf,
+    assert_model_hf_serialization_roundtrip,
+)
+
+MISTRAL_TEST_MODELS = ["explosion-testing/mistral-testing"]
+
+
+@pytest.mark.skipif(not has_hf_transformers, reason="requires huggingface transformers")
+@pytest.mark.parametrize("torch_device", TORCH_DEVICES)
+@pytest.mark.parametrize("model", MISTRAL_TEST_MODELS)
+@pytest.mark.parametrize("with_torch_sdp", [False, True])
+def test_decoder(torch_device, model, with_torch_sdp):
+    assert_decoder_output_equals_hf(
+        MistralDecoder, model, torch_device, with_torch_sdp=with_torch_sdp
+    )
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(not has_hf_transformers, reason="requires huggingface transformers")
+@pytest.mark.skipif(not has_torch_compile, reason="requires torch.compile")
+@pytest.mark.parametrize("torch_device", TORCH_DEVICES)
+@pytest.mark.parametrize("model", MISTRAL_TEST_MODELS)
+@pytest.mark.parametrize("with_torch_sdp", [False, True])
+def test_decoder_with_torch_compile(torch_device, model, with_torch_sdp):
+    assert_decoder_output_equals_hf(
+        MistralDecoder,
+        model,
+        torch_device,
+        jit_method=JITMethod.TorchCompile,
+        with_torch_sdp=with_torch_sdp,
+    )
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(not has_hf_transformers, reason="requires huggingface transformers")
+@pytest.mark.parametrize("torch_device", TORCH_DEVICES)
+@pytest.mark.parametrize("model", MISTRAL_TEST_MODELS)
+@pytest.mark.parametrize("with_torch_sdp", [False, True])
+def test_decoder_with_torchscript_trace(torch_device, model, with_torch_sdp):
+    assert_decoder_output_equals_hf(
+        MistralDecoder,
+        model,
+        torch_device,
+        jit_method=JITMethod.TorchScriptTrace,
+        with_torch_sdp=with_torch_sdp,
+    )
+
+
+@pytest.mark.skipif(not has_hf_transformers, reason="requires huggingface transformers")
+@pytest.mark.parametrize("model", MISTRAL_TEST_MODELS)
+@pytest.mark.parametrize("torch_device", TORCH_DEVICES)
+def test_decoder_hf_serializtion_roundtrip(model, torch_device):
+    assert_model_hf_serialization_roundtrip(MistralDecoder, model, torch_device)
