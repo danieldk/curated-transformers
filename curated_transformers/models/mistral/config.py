@@ -27,7 +27,7 @@ class MistralConfig(TransformerConfig):
         hidden_dropout_prob: float = 0.0,
         hidden_width: int = 4096,
         intermediate_width: int = 14336,
-        layer_norm_eps: float = 1e-5,
+        layer_norm_eps: float = 1e-06,
         model_max_length: int = 32768,
         n_hidden_layers: int = 32,
         n_key_value_heads: int = 8,
@@ -35,7 +35,7 @@ class MistralConfig(TransformerConfig):
         n_positions: int = 32768,
         n_query_heads: int = 32,
         rotary_embedding_base: int = 10000,
-        rotary_embedding_fraction: float = 0.25,
+        rotary_embedding_fraction: float = 1.0,
         sliding_window: int = 4096
     ):
         """
@@ -99,7 +99,7 @@ class MistralConfig(TransformerConfig):
                 intermediate_width=intermediate_width,
                 activation=activation,
                 use_bias=False,
-                use_gate=False,
+                use_gate=True,
             ),
             dropout_prob=hidden_dropout_prob,
             layer_norm_eps=layer_norm_eps,

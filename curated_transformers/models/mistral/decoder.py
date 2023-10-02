@@ -1,14 +1,14 @@
 from functools import partial
-from ...layers.normalization import RMSNorm
 from typing import Any, Mapping, Optional, Type, TypeVar
 
 import torch
 from torch import Tensor
-from torch.nn import Dropout, LayerNorm, ModuleList
+from torch.nn import Dropout, ModuleList
 
 from ...layers.attention import AttentionHeads, QkvMode, SelfAttention
 from ...layers.embeddings import QueryKeyRotaryEmbeddings
 from ...layers.feedforward import PointwiseFeedForward
+from ...layers.normalization import RMSNorm
 from ...layers.transformer import (
     DecoderLayer,
     EmbeddingDropouts,
@@ -62,7 +62,10 @@ class MistralDecoder(TransformerDecoder[MistralConfig], FromHFHub):
 
         hidden_width = config.layer.feedforward.hidden_width
         n_query_heads = config.layer.attention.n_query_heads
-        n_key_value_heads = config.layer.attention.n_key_value_heads
+        attention_heads = AttentionHeads.key_value_broadcast(
+            n_query_heads=n_query_heads,
+            n_key_value_heads=config.layer.attention.n_key_value_heads,
+        )
         layer_norm = partial(
             RMSNorm,
             hidden_width,
@@ -77,10 +80,7 @@ class MistralDecoder(TransformerDecoder[MistralConfig], FromHFHub):
             [
                 DecoderLayer(
                     attention_layer=SelfAttention(
-                        attention_heads=AttentionHeads.key_value_broadcast(
-                            n_query_heads=n_query_heads,
-                            n_key_value_heads=n_key_value_heads,
-                        ),
+                        attention_heads=attention_heads,
                         dropout_prob=config.layer.attention.dropout_prob,
                         hidden_width=hidden_width,
                         qkv_mode=QkvMode.SEPARATE,

@@ -50,6 +50,7 @@ HF_CONFIG_KEY_MAPPING: Dict[str, Union[str, Tuple[str, Callable]]] = {
     "num_attention_heads": "n_query_heads",
     "num_key_value_heads": "n_key_value_heads",
     "num_hidden_layers": "n_hidden_layers",
+    "rms_norm_eps": "layer_norm_eps",
     "rope_theta": "rotary_embedding_base",
     "vocab_size": "n_pieces",
 }

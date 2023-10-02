@@ -156,7 +156,6 @@ def _resolve_tokenizer_class(
     if cls is None:
         try:
             model_type = repo.model_type()
-            print(model_type)
             cls = HF_MODEL_MAPPING.get(model_type)
         except:
             pass
