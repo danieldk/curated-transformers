@@ -10,7 +10,10 @@ from ..util import (
     assert_model_hf_serialization_roundtrip,
 )
 
-MISTRAL_TEST_MODELS = ["explosion-testing/mistral-testing"]
+MISTRAL_TEST_MODELS = [
+    "explosion-testing/mistral-test",
+    "explosion-testing/mistral-window-8",
+]
 
 
 @pytest.mark.skipif(not has_hf_transformers, reason="requires huggingface transformers")

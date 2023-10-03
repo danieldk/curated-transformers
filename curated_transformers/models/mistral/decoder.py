@@ -107,6 +107,7 @@ class MistralDecoder(TransformerDecoder[MistralConfig], FromHFHub):
                         attn_input_layer_norm=layer_norm(),
                         ffn_input_layer_norm=layer_norm(),
                     ),
+                    sliding_window=config.sliding_window,
                     use_parallel_attention=config.layer.attention.use_parallel_attention,
                 )
                 for _ in range(config.layer.n_hidden_layers)

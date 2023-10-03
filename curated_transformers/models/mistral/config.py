@@ -106,3 +106,4 @@ class MistralConfig(TransformerConfig):
             n_hidden_layers=n_hidden_layers,
         )
         self.dtype = torch.float16
+        self.sliding_window = sliding_window

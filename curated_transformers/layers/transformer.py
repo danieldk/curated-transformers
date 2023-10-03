@@ -333,6 +333,7 @@ class _TransformerLayer(Module):
         cache: Optional[KeyValueCache] = None,
         positions: Optional[Tensor] = None,
         store_cache: bool = False,
+        sliding_window: Optional[int] = None,
         use_causal_mask: bool,
     ) -> Tuple[Tensor, Optional[KeyValueCache]]:
         """
@@ -371,6 +372,7 @@ class _TransformerLayer(Module):
             store_cache=store_cache,
             positions=positions,
             use_causal_mask=use_causal_mask,
+            sliding_window=sliding_window,
         )
         attn_out = self.attn_output_dropout(attn_out)
 
@@ -397,6 +399,40 @@ class DecoderLayer(_TransformerLayer):
 
     .. _Vaswani et al., 2017: https://arxiv.org/abs/1706.03762
     """
+
+    def __init__(
+        self,
+        *,
+        attention_layer: SelfAttention,
+        dropouts: TransformerDropouts,
+        feed_forward_layer: PointwiseFeedForward,
+        layer_norms: TransformerLayerNorms,
+        use_parallel_attention: bool,
+        sliding_window: Optional[int] = None,
+    ):
+        """
+        Construct a transformer decoder layer.
+
+        :param attention_layer:
+            The attention layer to use in the transformer layer.
+        :param dropouts:
+            Dropouts to use in the transformer layer.
+        :param feed_forward_layer:
+            The pointwise feed-forward layer to use in the transformer layer.
+        :param layer_norms:
+            Layer norms to use in the layer.
+        :param use_parallel_attention:
+             Use parallel attention.
+        """
+        super().__init__(
+            attention_layer=attention_layer,
+            dropouts=dropouts,
+            feed_forward_layer=feed_forward_layer,
+            layer_norms=layer_norms,
+            use_parallel_attention=use_parallel_attention,
+        )
+
+        self.sliding_window = sliding_window
 
     def forward(
         self,
@@ -439,6 +475,7 @@ class DecoderLayer(_TransformerLayer):
             use_causal_mask=True,
             positions=positions,
             store_cache=store_cache,
+            sliding_window=self.sliding_window,
         )
 
 
