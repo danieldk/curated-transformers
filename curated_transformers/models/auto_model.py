@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Generic, Optional, Type, TypeVar
+from typing import Generic, Optional, Type, TypeVar
+import warnings
 
 import torch
 from catalogue import Registry
@@ -35,10 +36,17 @@ class AutoModel(ABC, Generic[ModelT]):
         model_type = repo.model_type()
 
         supported_model_types = set()
-        for module_cls in cls._registry.get_entry_points().values():
+        for entrypoint, module_cls in cls._registry.get_entry_points().items():
             # TODO: exception/warning rather than assertion, this is an
             # extension point.
-            assert issubclass(module_cls, FromHFHub)
+
+            if not issubclass(module_cls, FromHFHub):
+                warnings.warn(
+                    f"Entry point {entrypoint} cannot load from Huggingface Hub "
+                    "since the FromHFHub mixin is not implemented"
+                )
+                continue
+
             module_model_types = module_cls.hf_model_type()
             if model_type in module_model_types:
                 return module_cls
